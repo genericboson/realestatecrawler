@@ -13,6 +13,7 @@ public sealed class CrawlRunnerTests : IDisposable
     readonly FakeFeed _dabang = new("다방 원룸·투룸");
     readonly FakeFeed _zigbang = new("직방 원룸");
     readonly RecordingMail _mail = new();
+    readonly FakeMaps _maps = new();
     readonly CrawlRunner _runner;
     readonly StateStore _store;
 
@@ -20,7 +21,7 @@ public sealed class CrawlRunnerTests : IDisposable
     {
         _store = new StateStore(Path.Combine(_dir, "state.json"), NullLogger<StateStore>.Instance);
         _runner = new CrawlRunner(
-            [_dabang, _zigbang], _store, _mail, Options.Create(new CrawlerOptions()), TimeProvider.System,
+            [_dabang, _zigbang], _store, _mail, _maps, Options.Create(new CrawlerOptions()), TimeProvider.System,
             NullLogger<CrawlRunner>.Instance);
     }
 
@@ -29,8 +30,8 @@ public sealed class CrawlRunnerTests : IDisposable
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
     }
 
-    static Listing L(string source, string id, string floor = "3층", double lat = 37.5405, double lng = 127.0570) =>
-        new(source, id, "원룸", "1000/65", floor, "20㎡", "성수동2가", "제목", lat, lng, $"https://example/{id}");
+    static Listing L(string source, string id, string floor = "3층", double lat = 37.5405, double lng = 127.0570, int? rent = 55) =>
+        new(source, id, "원룸", $"1000/{rent}", floor, "20㎡", "성수동2가", "제목", lat, lng, $"https://example/{id}", rent);
 
     [Fact]
     public async Task FirstRunIsBaselineOnly()
@@ -82,6 +83,39 @@ public sealed class CrawlRunnerTests : IDisposable
         Assert.DoesNotContain("ground", text);
         Assert.DoesNotContain("basement", text);
         Assert.DoesNotContain("far", text);
+    }
+
+    [Fact]
+    public async Task SkipsRentAboveLimitButKeepsUnknownRent()
+    {
+        _dabang.Next = [];
+        _zigbang.Next = [];
+        await _runner.RunAsync(CancellationToken.None);
+
+        _dabang.Next = [L("다방", "at-limit", rent: 60), L("다방", "over", rent: 61), L("다방", "unknown", rent: null)];
+        await _runner.RunAsync(CancellationToken.None);
+
+        var text = Assert.Single(_mail.Sent).Text;
+        Assert.Contains("https://example/at-limit", text);
+        Assert.Contains("https://example/unknown", text);
+        Assert.DoesNotContain("https://example/over", text);
+    }
+
+    [Fact]
+    public async Task AttachesMapForEachListingAndSendsWithoutMapWhenItFails()
+    {
+        _dabang.Next = [];
+        _zigbang.Next = [];
+        await _runner.RunAsync(CancellationToken.None);
+
+        _dabang.Next = [L("다방", "mapped"), L("다방", "nomap", lat: 37.5410)];
+        _maps.FailAtLat = 37.5410;
+        await _runner.RunAsync(CancellationToken.None);
+
+        var mail = Assert.Single(_mail.Sent);
+        Assert.Single(mail.Images);
+        Assert.Contains($"cid:{mail.Images[0].ContentId}", mail.Html);
+        Assert.Contains("https://example/nomap", mail.Text);
     }
 
     [Fact]
@@ -139,6 +173,14 @@ public sealed class CrawlRunnerTests : IDisposable
 
         public Task<IReadOnlyList<Listing>> FetchAsync(SearchArea area, CancellationToken ct) =>
             Fail ? throw new HttpRequestException("down") : Task.FromResult(Next);
+    }
+
+    sealed class FakeMaps : IMapRenderer
+    {
+        public double FailAtLat { get; set; } = double.NaN;
+
+        public Task<byte[]?> RenderAsync(double lat, double lng, CancellationToken ct) =>
+            Task.FromResult(lat == FailAtLat ? null : new byte[] { 0xFF, 0xD8, 0xFF });
     }
 
     sealed class RecordingMail : IMailSender

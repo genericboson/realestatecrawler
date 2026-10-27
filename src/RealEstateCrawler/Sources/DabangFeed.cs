@@ -85,6 +85,7 @@ internal sealed class DabangFeed(IHttpClientFactory httpFactory, DabangCategory 
             Id: id,
             RoomType: room.Str("roomTypeName").Replace(" • ", "·"),
             Price: room.Str("priceTitle"),
+            Rent: ParseRent(room.Str("priceTitle")),
             Floor: FloorRule.Normalize(floor),
             Area: areaText,
             Location: place,
@@ -92,5 +93,12 @@ internal sealed class DabangFeed(IHttpClientFactory httpFactory, DabangCategory 
             Lat: location.ValueKind == JsonValueKind.Object ? location.Num("lat") ?? 0 : 0,
             Lng: location.ValueKind == JsonValueKind.Object ? location.Num("lng") ?? 0 : 0,
             Url: $"https://www.dabangapp.com/room/{id}");
+    }
+
+    /// <summary>priceTitle "보증금/월세" 에서 월세(만원)만 읽는다. 예: "1억/50" → 50.</summary>
+    internal static int? ParseRent(string priceTitle)
+    {
+        var slash = priceTitle.LastIndexOf('/');
+        return slash >= 0 && int.TryParse(priceTitle.AsSpan(slash + 1).Trim(), out var rent) ? rent : null;
     }
 }

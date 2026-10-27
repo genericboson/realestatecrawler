@@ -90,6 +90,7 @@ internal sealed class ZigbangHouseFeed(IHttpClientFactory httpFactory, ZigbangGe
             Id: id,
             RoomType: roomType,
             Price: $"{FormatManwon((long)(item.Num("deposit") ?? 0))}/{(long)(item.Num("rent") ?? 0)}",
+            Rent: item.Num("rent") is { } rent ? (int)rent : null,
             Floor: FloorRule.Normalize(floor),
             Area: size is { } m2 ? string.Create(CultureInfo.InvariantCulture, $"{m2:0.##}㎡") : "",
             Location: item.Str("address"),

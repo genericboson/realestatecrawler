@@ -15,8 +15,8 @@ public sealed class Worker(
     {
         var o = options.Value;
         logger.LogInformation(
-            "시작: {Center} 반경 {Radius}km, {Floor}층 이상, {Interval}분 간격, 상태 파일 {State}, 메일 {Mail}",
-            o.CenterName, o.RadiusKm, o.MinFloor, o.IntervalMinutes, store.Path, mail.IsEnabled ? "사용" : "미설정(로그만)");
+            "시작: {Center} 반경 {Radius}km, {Floor}층 이상, 월세 {MaxRent}만원 이하, {Interval}분 간격, 상태 파일 {State}, 메일 {Mail}",
+            o.CenterName, o.RadiusKm, o.MinFloor, o.MaxMonthlyRent, o.IntervalMinutes, store.Path, mail.IsEnabled ? "사용" : "미설정(로그만)");
 
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(o.IntervalMinutes));
         do

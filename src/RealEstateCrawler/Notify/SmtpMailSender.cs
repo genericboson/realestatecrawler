@@ -37,7 +37,14 @@ internal sealed class SmtpMailSender(IOptions<MailOptions> options, ILogger<Smtp
         var message = new MimeMessage { Subject = mail.Subject };
         message.From.Add(new MailboxAddress("부동산 크롤러", string.IsNullOrWhiteSpace(o.From) ? o.To : o.From));
         message.To.Add(MailboxAddress.Parse(o.To));
-        message.Body = new BodyBuilder { TextBody = mail.Text, HtmlBody = mail.Html }.ToMessageBody();
+        var body = new BodyBuilder { TextBody = mail.Text, HtmlBody = mail.Html };
+        foreach (var image in mail.Images)
+        {
+            // 본문 <img src="cid:..."> 가 가리키는 인라인 이미지로 붙인다
+            var resource = body.LinkedResources.Add($"{image.ContentId.Split('@')[0]}.jpg", image.Jpeg, new ContentType("image", "jpeg"));
+            resource.ContentId = image.ContentId;
+        }
+        message.Body = body.ToMessageBody();
 
         using var client = new SmtpClient();
         var security = o.UseStartTls ? SecureSocketOptions.StartTls : SecureSocketOptions.SslOnConnect;

@@ -13,6 +13,9 @@ public sealed class CrawlerOptions
     public int IntervalMinutes { get; set; } = 60;
     public int MinFloor { get; set; } = 2;
 
+    /// <summary>월세 상한(만원, 관리비 제외). 넘는 매물은 알리지 않는다.</summary>
+    public int MaxMonthlyRent { get; set; } = 60;
+
     /// <summary>이 기간 동안 다시 보이지 않은 매물은 기억에서 지운다.</summary>
     public int SeenRetentionDays { get; set; } = 30;
 

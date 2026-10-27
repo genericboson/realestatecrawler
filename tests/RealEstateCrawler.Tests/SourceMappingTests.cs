@@ -25,6 +25,7 @@ public class SourceMappingTests
         Assert.Equal("다방:6ad76024bbe1fa51cd56e0a1", listing.Key);
         Assert.Equal("투룸·단기", listing.RoomType);
         Assert.Equal("1000/125", listing.Price);
+        Assert.Equal(125, listing.Rent);
         Assert.Equal("3층", listing.Floor);
         Assert.Equal("15.03㎡", listing.Area);
         Assert.Equal("성수동2가 테라289", listing.Location);
@@ -61,6 +62,7 @@ public class SourceMappingTests
         Assert.Equal("직방:50012620", listing.Key);
         Assert.Equal("투룸", listing.RoomType);
         Assert.Equal("1억9400/183", listing.Price);
+        Assert.Equal(183, listing.Rent);
         Assert.Equal("고층", listing.Floor);
         Assert.Equal("24.48㎡", listing.Area);
         Assert.Equal("https://www.zigbang.com/home/oneroom/items/50012620", listing.Url);
@@ -79,6 +81,7 @@ public class SourceMappingTests
         Assert.Equal("직방:apt-50014707", listing.Key);
         Assert.Equal("아파트", listing.RoomType);
         Assert.Equal("5000/350", listing.Price);
+        Assert.Equal(350, listing.Rent);
         Assert.Equal("저층", listing.Floor);
         Assert.Equal("성수동1가 트리마제 103동", listing.Location);
         Assert.Equal("https://www.zigbang.com/home/apt/danjis/36524", listing.Url);
@@ -91,4 +94,13 @@ public class SourceMappingTests
     [InlineData(240000, "24억")]
     public void FormatManwon_UsesEokUnit(long manwon, string expected) =>
         Assert.Equal(expected, ZigbangHouseFeed.FormatManwon(manwon));
+
+    [Theory]
+    [InlineData("1000/60", 60)]
+    [InlineData("1억/50", 50)]
+    [InlineData("1억2000/ 45", 45)]
+    [InlineData("3억", null)]
+    [InlineData("1000/협의", null)]
+    public void DabangRent_ReadsNumberAfterSlash(string priceTitle, int? expected) =>
+        Assert.Equal(expected, DabangFeed.ParseRent(priceTitle));
 }

@@ -57,7 +57,7 @@ internal sealed class ZigbangApartmentFeed(IHttpClientFactory httpFactory) : ILi
         var place = string.Join(' ', new[] { item.Str("local3"), item.Str("areaDanjiName"), item.Str("dong") }
             .Where(s => s.Length > 0));
         var deposit = ZigbangHouseFeed.FormatManwon((long)(item.Num("depositMin") ?? 0));
-        var rent = (long)(item.Num("rentMin") ?? 0);
+        var rent = (int)(item.Num("rentMin") ?? 0);
 
         return new Listing(
             Source: "직방",
@@ -66,6 +66,7 @@ internal sealed class ZigbangApartmentFeed(IHttpClientFactory httpFactory) : ILi
             Price: item.TryGetProperty("isPriceRange", out var range) && range.ValueKind == JsonValueKind.True
                 ? $"{deposit}/{rent}~"
                 : $"{deposit}/{rent}",
+            Rent: item.Num("rentMin") is null ? null : rent,
             Floor: FloorRule.Normalize(item.Str("floor")),
             Area: item.Num("sizeM2") is { } m2 ? string.Create(CultureInfo.InvariantCulture, $"{m2:0.##}㎡") : "",
             Location: place,

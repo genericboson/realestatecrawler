@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using RealEstateCrawler.Geo;
 using RealEstateCrawler.Notify;
 using RealEstateCrawler.Sources;
 using RealEstateCrawler.State;
@@ -13,6 +14,7 @@ public sealed class CrawlRunner(
     IEnumerable<IListingFeed> feeds,
     StateStore store,
     IMailSender mail,
+    IMapRenderer maps,
     IOptions<CrawlerOptions> options,
     TimeProvider time,
     ILogger<CrawlRunner> logger)
@@ -50,7 +52,11 @@ public sealed class CrawlRunner(
 
             try
             {
-                await mail.SendAsync(MailFormatter.Build(fresh, opt.AlertLabel), ct);
+                var images = new Dictionary<string, byte[]>();
+                foreach (var listing in fresh)
+                    if (await maps.RenderAsync(listing.Lat, listing.Lng, ct) is { } map) images[listing.Key] = map;
+
+                await mail.SendAsync(MailFormatter.Build(fresh, opt.AlertLabel, opt.CenterName, images), ct);
                 // 발송에 성공한 뒤에만 본 것으로 기록한다. 실패하면 다음 회차에 다시 신규로 잡혀 재시도된다.
                 state.MarkSeen(fresh, now);
                 logger.LogInformation("신규 {Count}건 메일 처리", fresh.Count);
@@ -69,7 +75,7 @@ public sealed class CrawlRunner(
     public async Task DryRunAsync(TextWriter output, CancellationToken ct)
     {
         var opt = options.Value;
-        output.WriteLine($"{opt.CenterName} ({opt.CenterLat}, {opt.CenterLng}) 반경 {opt.RadiusKm}km, {opt.MinFloor}층 이상 월세");
+        output.WriteLine($"{opt.CenterName} ({opt.CenterLat}, {opt.CenterLng}) 반경 {opt.RadiusKm}km, {opt.MinFloor}층 이상, 월세 {opt.MaxMonthlyRent}만원 이하");
         var total = new HashSet<string>();
         foreach (var feed in feeds)
         {
@@ -94,6 +100,8 @@ public sealed class CrawlRunner(
             var listings = await feed.FetchAsync(area, ct);
             return listings
                 .Where(l => area.Contains(l.Lat, l.Lng) && FloorRule.IsAllowed(l.Floor, opt.MinFloor))
+                // 월세를 읽지 못한 매물은 놓치지 않도록 남긴다 (메일에 가격 표기가 그대로 나간다)
+                .Where(l => l.Rent is null || l.Rent <= opt.MaxMonthlyRent)
                 .DistinctBy(l => l.Key)
                 .ToList();
         }

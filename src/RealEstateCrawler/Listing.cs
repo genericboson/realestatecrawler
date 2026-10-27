@@ -10,6 +10,7 @@ namespace RealEstateCrawler;
 /// <param name="Floor">층 표기, 예: 3층, 저층, 옥탑</param>
 /// <param name="Area">전용면적, 예: 24.5㎡</param>
 /// <param name="Location">동 이름과 단지명</param>
+/// <param name="Rent">월세 (만원). 가격 범위로 묶인 매물은 최저값, 읽지 못하면 null</param>
 public sealed record Listing(
     string Source,
     string Id,
@@ -21,7 +22,8 @@ public sealed record Listing(
     string Title,
     double Lat,
     double Lng,
-    string Url)
+    string Url,
+    int? Rent = null)
 {
     public string Key => $"{Source}:{Id}";
 }

@@ -1,5 +1,6 @@
 using System.Text;
 using RealEstateCrawler;
+using RealEstateCrawler.Geo;
 using RealEstateCrawler.Notify;
 using RealEstateCrawler.Sources;
 using RealEstateCrawler.State;
@@ -60,6 +61,13 @@ builder.Services.AddHttpClient(ZigbangHouseFeed.HttpClientName, c =>
     c.DefaultRequestHeaders.Referrer = new Uri("https://www.zigbang.com/");
     c.DefaultRequestHeaders.Add("X-Zigbang-Platform", "www");
 });
+builder.Services.AddHttpClient(OsmStaticMapRenderer.HttpClientName, c =>
+{
+    c.BaseAddress = new Uri("https://tile.openstreetmap.org/");
+    c.Timeout = TimeSpan.FromSeconds(20);
+    // OSM 타일 정책: 앱을 알아볼 수 있는 User-Agent 를 보내야 한다
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("RealEstateCrawler/1.0 (+https://github.com/genericboson/realestatecrawler)");
+});
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(new ZigbangGeohashCipher(crawlerOptions.ZigbangGeohashKey));
@@ -71,6 +79,7 @@ builder.Services.AddSingleton<IListingFeed>(sp => ActivatorUtilities.CreateInsta
 builder.Services.AddSingleton<IListingFeed>(sp => ActivatorUtilities.CreateInstance<ZigbangHouseFeed>(sp, ZigbangHouseKind.Officetel));
 builder.Services.AddSingleton<IListingFeed, ZigbangApartmentFeed>();
 builder.Services.AddSingleton<IMailSender, SmtpMailSender>();
+builder.Services.AddSingleton<IMapRenderer, OsmStaticMapRenderer>();
 builder.Services.AddSingleton(sp => ActivatorUtilities.CreateInstance<StateStore>(sp, Path.Combine(dataDirectory, "state.json")));
 builder.Services.AddSingleton<CrawlRunner>();
 builder.Services.AddHostedService<Worker>();
@@ -95,7 +104,7 @@ try
             return 1;
         }
         const string Body = "부동산 크롤러의 메일 발송 시험입니다. 이 메일이 보이면 설정이 맞습니다.";
-        await mail.SendAsync(new MailContent("[부동산 크롤러] 메일 발송 시험", Body, $"<p>{Body}</p>"), CancellationToken.None);
+        await mail.SendAsync(new MailContent("[부동산 크롤러] 메일 발송 시험", Body, $"<p>{Body}</p>", []), CancellationToken.None);
         return 0;
     }
 
