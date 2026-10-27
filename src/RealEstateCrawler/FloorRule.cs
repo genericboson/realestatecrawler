@@ -7,7 +7,7 @@ internal static partial class FloorRule
     /// <summary>
     /// 층 조건 판정. 숫자 층은 그대로 비교하고, 지하/반지하는 뺀다.
     /// 옥탑은 지상 위층이라 통과시키고, 사이트가 정확한 층을 숨긴 저층/중층/고층과
-    /// 층 정보가 없는 매물은 놓치지 않도록 통과시킨다 (문자에 층 표기가 그대로 나간다).
+    /// 층 정보가 없는 매물은 놓치지 않도록 통과시킨다 (메일에 층 표기가 그대로 나간다).
     /// </summary>
     public static bool IsAllowed(string floor, int minFloor)
     {

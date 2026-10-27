@@ -15,7 +15,7 @@ $project = Join-Path $repoRoot 'src\RealEstateCrawler\RealEstateCrawler.csproj'
 $localSettings = Join-Path $repoRoot 'src\RealEstateCrawler\appsettings.Local.json'
 
 if (-not (Test-Path $localSettings)) {
-    throw "Missing $localSettings. Copy appsettings.Local.example.json to it and fill in the phone number and SOLAPI keys."
+    throw "Missing $localSettings. Copy appsettings.Local.example.json to it and fill in the mail address and SMTP password file."
 }
 
 $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue

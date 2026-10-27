@@ -49,7 +49,7 @@ public sealed class StateStore(string path, ILogger<StateStore> logger)
         }
         catch (JsonException ex)
         {
-            // 깨진 상태로 계속 돌면 매 회차가 실패한다. 옆으로 치우고 기준선부터 다시 잡는다(문자 폭주 없음).
+            // 깨진 상태로 계속 돌면 매 회차가 실패한다. 옆으로 치우고 기준선부터 다시 잡는다(메일 폭주 없음).
             var backup = $"{path}.corrupt-{DateTime.Now:yyyyMMddHHmmss}";
             File.Move(path, backup);
             logger.LogError(ex, "상태 파일이 깨져 {Backup} 로 옮기고 새로 시작", backup);

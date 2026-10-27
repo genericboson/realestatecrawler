@@ -8,19 +8,19 @@ using Serilog.Events;
 
 // 실행 방법
 //   (인자 없음)   서비스/콘솔로 계속 돌며 주기마다 크롤링
-//   --dry-run     한 번 수집해서 조건에 맞는 매물을 출력만 한다 (상태 저장·문자 없음)
-//   --test-sms    설정된 번호로 시험 문자 한 통을 보낸다
+//   --dry-run     한 번 수집해서 조건에 맞는 매물을 출력만 한다 (상태 저장·메일 없음)
+//   --test-mail   설정된 주소로 시험 메일 한 통을 보낸다
 var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
 {
     Args = args,
     ContentRootPath = AppContext.BaseDirectory,
 });
-// 전화번호와 SMS 키는 저장소에 올리지 않는 이 파일에만 둔다
+// 메일 주소와 SMTP 비밀번호(또는 그 파일 경로)는 저장소에 올리지 않는 이 파일에만 둔다
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
 builder.Services.AddWindowsService(o => o.ServiceName = "RealEstateCrawler");
 builder.Services.Configure<CrawlerOptions>(builder.Configuration.GetSection(CrawlerOptions.Section));
-builder.Services.Configure<SmsOptions>(builder.Configuration.GetSection(SmsOptions.Section));
+builder.Services.Configure<MailOptions>(builder.Configuration.GetSection(MailOptions.Section));
 
 var crawlerOptions = builder.Configuration.GetSection(CrawlerOptions.Section).Get<CrawlerOptions>() ?? new CrawlerOptions();
 var dataDirectory = crawlerOptions.ResolveDataDirectory();
@@ -60,11 +60,6 @@ builder.Services.AddHttpClient(ZigbangHouseFeed.HttpClientName, c =>
     c.DefaultRequestHeaders.Referrer = new Uri("https://www.zigbang.com/");
     c.DefaultRequestHeaders.Add("X-Zigbang-Platform", "www");
 });
-builder.Services.AddHttpClient(SolapiSmsSender.HttpClientName, c =>
-{
-    c.BaseAddress = new Uri("https://api.solapi.com/");
-    c.Timeout = TimeSpan.FromSeconds(30);
-});
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(new ZigbangGeohashCipher(crawlerOptions.ZigbangGeohashKey));
@@ -75,7 +70,7 @@ builder.Services.AddSingleton<IListingFeed>(sp => ActivatorUtilities.CreateInsta
 builder.Services.AddSingleton<IListingFeed>(sp => ActivatorUtilities.CreateInstance<ZigbangHouseFeed>(sp, ZigbangHouseKind.Villa));
 builder.Services.AddSingleton<IListingFeed>(sp => ActivatorUtilities.CreateInstance<ZigbangHouseFeed>(sp, ZigbangHouseKind.Officetel));
 builder.Services.AddSingleton<IListingFeed, ZigbangApartmentFeed>();
-builder.Services.AddSingleton<ISmsSender, SolapiSmsSender>();
+builder.Services.AddSingleton<IMailSender, SmtpMailSender>();
 builder.Services.AddSingleton(sp => ActivatorUtilities.CreateInstance<StateStore>(sp, Path.Combine(dataDirectory, "state.json")));
 builder.Services.AddSingleton<CrawlRunner>();
 builder.Services.AddHostedService<Worker>();
@@ -91,16 +86,16 @@ try
         return 0;
     }
 
-    if (args.Contains("--test-sms"))
+    if (args.Contains("--test-mail"))
     {
-        var sms = host.Services.GetRequiredService<ISmsSender>();
-        if (!sms.IsConfigured)
+        var mail = host.Services.GetRequiredService<IMailSender>();
+        if (!mail.IsEnabled)
         {
-            Log.Error("appsettings.Local.json 의 Sms 설정(ApiKey, ApiSecret, To)이 비어 있음");
+            Log.Error("appsettings.Local.json 의 Mail:To 가 비어 있음");
             return 1;
         }
-        await sms.SendAsync([new SmsMessage("[부동산 크롤러] 문자 발송 시험입니다.", "SMS", null)], CancellationToken.None);
-        Log.Information("시험 문자를 보냈음");
+        const string Body = "부동산 크롤러의 메일 발송 시험입니다. 이 메일이 보이면 설정이 맞습니다.";
+        await mail.SendAsync(new MailContent("[부동산 크롤러] 메일 발송 시험", Body, $"<p>{Body}</p>"), CancellationToken.None);
         return 0;
     }
 

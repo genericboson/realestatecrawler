@@ -6,13 +6,13 @@ using RealEstateCrawler.State;
 namespace RealEstateCrawler;
 
 /// <summary>
-/// 한 회차: 모든 카테고리를 수집하고, 처음 보는 매물만 문자로 보낸다.
-/// 카테고리의 첫 성공 수집은 기준선으로만 저장하고 문자를 보내지 않는다.
+/// 한 회차: 모든 카테고리를 수집하고, 처음 보는 매물만 메일로 보낸다.
+/// 카테고리의 첫 성공 수집은 기준선으로만 저장하고 메일을 보내지 않는다.
 /// </summary>
 public sealed class CrawlRunner(
     IEnumerable<IListingFeed> feeds,
     StateStore store,
-    ISmsSender sms,
+    IMailSender mail,
     IOptions<CrawlerOptions> options,
     TimeProvider time,
     ILogger<CrawlRunner> logger)
@@ -32,7 +32,7 @@ public sealed class CrawlRunner(
             {
                 state.MarkSeen(listings, now);
                 state.MarkBaselined(feed.Name);
-                logger.LogInformation("{Feed}: 첫 수집 {Count}건을 기준선으로 저장 (문자 없음)", feed.Name, listings.Count);
+                logger.LogInformation("{Feed}: 첫 수집 {Count}건을 기준선으로 저장 (메일 없음)", feed.Name, listings.Count);
                 continue;
             }
 
@@ -46,19 +46,18 @@ public sealed class CrawlRunner(
         if (fresh.Count > 0)
         {
             foreach (var listing in fresh)
-                logger.LogInformation("신규 매물: {Listing}", MessageFormatter.FormatBlock(listing).ReplaceLineEndings(" | "));
+                logger.LogInformation("신규 매물: {Listing}", MailFormatter.FormatBlock(listing).ReplaceLineEndings(" | "));
 
-            var messages = MessageFormatter.Build(fresh, opt.AlertLabel, opt.MaxMessagesPerRun);
             try
             {
-                await sms.SendAsync(messages, ct);
+                await mail.SendAsync(MailFormatter.Build(fresh, opt.AlertLabel), ct);
                 // 발송에 성공한 뒤에만 본 것으로 기록한다. 실패하면 다음 회차에 다시 신규로 잡혀 재시도된다.
                 state.MarkSeen(fresh, now);
-                logger.LogInformation("신규 {Count}건, 문자 {Messages}통 처리", fresh.Count, messages.Count);
+                logger.LogInformation("신규 {Count}건 메일 처리", fresh.Count);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger.LogError(ex, "문자 발송 실패 — 다음 회차에 다시 보냄");
+                logger.LogError(ex, "메일 발송 실패 — 다음 회차에 다시 보냄");
             }
         }
 
@@ -80,7 +79,7 @@ public sealed class CrawlRunner(
             foreach (var listing in listings)
             {
                 total.Add(listing.Key);
-                output.WriteLine($"{MessageFormatter.FormatBlock(listing).ReplaceLineEndings(" | ")} | {listing.Title}");
+                output.WriteLine($"{MailFormatter.FormatBlock(listing).ReplaceLineEndings(" | ")} | {listing.Title}");
             }
         }
         output.WriteLine();
@@ -100,7 +99,7 @@ public sealed class CrawlRunner(
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            // 실패한 카테고리는 이번 회차에서 빠질 뿐, 본 매물 기록은 그대로라 다음 회차에 문자 폭주가 없다
+            // 실패한 카테고리는 이번 회차에서 빠질 뿐, 본 매물 기록은 그대로라 다음 회차에 메일 폭주가 없다
             logger.LogError(ex, "{Feed} 수집 실패 — 이번 회차는 건너뜀", feed.Name);
             return null;
         }

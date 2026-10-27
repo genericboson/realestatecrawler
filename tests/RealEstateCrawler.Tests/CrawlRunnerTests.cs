@@ -12,7 +12,7 @@ public sealed class CrawlRunnerTests : IDisposable
     readonly string _dir = Path.Combine(Path.GetTempPath(), "rec-tests-" + Guid.NewGuid().ToString("N"));
     readonly FakeFeed _dabang = new("다방 원룸·투룸");
     readonly FakeFeed _zigbang = new("직방 원룸");
-    readonly RecordingSms _sms = new();
+    readonly RecordingMail _mail = new();
     readonly CrawlRunner _runner;
     readonly StateStore _store;
 
@@ -20,7 +20,7 @@ public sealed class CrawlRunnerTests : IDisposable
     {
         _store = new StateStore(Path.Combine(_dir, "state.json"), NullLogger<StateStore>.Instance);
         _runner = new CrawlRunner(
-            [_dabang, _zigbang], _store, _sms, Options.Create(new CrawlerOptions()), TimeProvider.System,
+            [_dabang, _zigbang], _store, _mail, Options.Create(new CrawlerOptions()), TimeProvider.System,
             NullLogger<CrawlRunner>.Instance);
     }
 
@@ -40,7 +40,7 @@ public sealed class CrawlRunnerTests : IDisposable
 
         await _runner.RunAsync(CancellationToken.None);
 
-        Assert.Empty(_sms.Sent);
+        Assert.Empty(_mail.Sent);
         Assert.Equal(3, _store.Load().Seen.Count);
     }
 
@@ -55,7 +55,7 @@ public sealed class CrawlRunnerTests : IDisposable
         _zigbang.Next = [L("직방", "1"), L("직방", "2")];
         await _runner.RunAsync(CancellationToken.None);
 
-        var text = Assert.Single(_sms.Sent).Text;
+        var text = Assert.Single(_mail.Sent).Text;
         Assert.Contains("https://example/new", text);
         Assert.Contains("https://example/2", text);
         Assert.DoesNotContain("https://example/a", text);
@@ -63,7 +63,7 @@ public sealed class CrawlRunnerTests : IDisposable
 
         // 같은 매물은 다시 보내지 않는다
         await _runner.RunAsync(CancellationToken.None);
-        Assert.Single(_sms.Sent);
+        Assert.Single(_mail.Sent);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class CrawlRunnerTests : IDisposable
         _zigbang.Next = [L("직방", "ok", floor: "2층")];
         await _runner.RunAsync(CancellationToken.None);
 
-        var text = Assert.Single(_sms.Sent).Text;
+        var text = Assert.Single(_mail.Sent).Text;
         Assert.Contains("https://example/ok", text);
         Assert.DoesNotContain("ground", text);
         Assert.DoesNotContain("basement", text);
@@ -97,7 +97,7 @@ public sealed class CrawlRunnerTests : IDisposable
         _dabang.Fail = false;
         await _runner.RunAsync(CancellationToken.None);
 
-        Assert.Empty(_sms.Sent);
+        Assert.Empty(_mail.Sent);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class CrawlRunnerTests : IDisposable
         _dabang.Next = [L("다방", "a"), L("다방", "b")];
         await _runner.RunAsync(CancellationToken.None);
 
-        Assert.Empty(_sms.Sent);
+        Assert.Empty(_mail.Sent);
     }
 
     [Fact]
@@ -122,13 +122,13 @@ public sealed class CrawlRunnerTests : IDisposable
         await _runner.RunAsync(CancellationToken.None);
 
         _dabang.Next = [L("다방", "new")];
-        _sms.Fail = true;
+        _mail.Fail = true;
         await _runner.RunAsync(CancellationToken.None);
-        Assert.Empty(_sms.Sent);
+        Assert.Empty(_mail.Sent);
 
-        _sms.Fail = false;
+        _mail.Fail = false;
         await _runner.RunAsync(CancellationToken.None);
-        Assert.Contains("https://example/new", Assert.Single(_sms.Sent).Text);
+        Assert.Contains("https://example/new", Assert.Single(_mail.Sent).Text);
     }
 
     sealed class FakeFeed(string name) : IListingFeed
@@ -141,16 +141,16 @@ public sealed class CrawlRunnerTests : IDisposable
             Fail ? throw new HttpRequestException("down") : Task.FromResult(Next);
     }
 
-    sealed class RecordingSms : ISmsSender
+    sealed class RecordingMail : IMailSender
     {
-        public List<SmsMessage> Sent { get; } = [];
+        public List<MailContent> Sent { get; } = [];
         public bool Fail { get; set; }
-        public bool IsConfigured => true;
+        public bool IsEnabled => true;
 
-        public Task SendAsync(IReadOnlyList<SmsMessage> messages, CancellationToken ct)
+        public Task SendAsync(MailContent mail, CancellationToken ct)
         {
-            if (Fail) throw new SmsSendException("no balance");
-            Sent.AddRange(messages);
+            if (Fail) throw new IOException("smtp down");
+            Sent.Add(mail);
             return Task.CompletedTask;
         }
     }
