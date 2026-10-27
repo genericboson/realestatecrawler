@@ -1,0 +1,35 @@
+using Microsoft.Extensions.Options;
+using RealEstateCrawler.Notify;
+using RealEstateCrawler.State;
+
+namespace RealEstateCrawler;
+
+public sealed class Worker(
+    CrawlRunner runner,
+    StateStore store,
+    ISmsSender sms,
+    IOptions<CrawlerOptions> options,
+    ILogger<Worker> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var o = options.Value;
+        logger.LogInformation(
+            "시작: {Center} 반경 {Radius}km, {Floor}층 이상, {Interval}분 간격, 상태 파일 {State}, 문자 {Sms}",
+            o.CenterName, o.RadiusKm, o.MinFloor, o.IntervalMinutes, store.Path, sms.IsConfigured ? "사용" : "미설정(로그만)");
+
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(o.IntervalMinutes));
+        do
+        {
+            try
+            {
+                await runner.RunAsync(stoppingToken);
+            }
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+            {
+                logger.LogError(ex, "크롤링 회차 실패");
+            }
+        }
+        while (await timer.WaitForNextTickAsync(stoppingToken));
+    }
+}

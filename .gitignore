@@ -1,0 +1,16 @@
+# 개인 설정: 전화번호, SMS API 키 — 절대 커밋하지 않는다
+appsettings.Local.json
+
+# 실행 중 생기는 상태/로그
+state.json
+state.json.*
+logs/
+
+# 빌드 산출물
+bin/
+obj/
+publish/
+*.user
+.vs/
+.idea/
+TestResults/
